@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 기업분석 자동화 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-50 font-sans">
+    <div class="flex min-h-screen">
+        <aside class="w-64 bg-[#1c1c1c] text-white hidden lg:flex flex-col">
+            <div class="p-6 border-b border-gray-700">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-[#f37321] rounded flex items-center justify-center font-bold text-white">H</div>
+                    <span class="text-lg font-bold tracking-tight">한화투자증권</span>
+                </div>
+            </div>
+            <nav class="flex-1 p-4 space-y-2">
+                <a href="#" class="flex items-center gap-3 p-3 bg-gray-800 rounded-lg text-[#f37321]">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i> 기업 분석 (DART)
+                </a>
+                <a href="#" class="flex items-center gap-3 p-3 text-gray-400 hover:bg-gray-800 hover:text-white transition">
+                    <i data-lucide="list" class="w-5 h-5"></i> 신규기관 발굴
+                </a>
+                <a href="#" class="flex items-center gap-3 p-3 text-gray-400 hover:bg-gray-800 hover:text-white transition">
+                    <i data-lucide="calendar" class="w-5 h-5"></i> 영업 캘린더
+                </a>
+            </nav>
+            <div class="p-4 border-t border-gray-700 text-xs text-gray-500">
+                마지막 동기화: 2026.04.15 06:00
+            </div>
+        </aside>
+
+        <main class="flex-1 overflow-y-auto h-screen p-8">
+            <header class="flex justify-between items-start mb-10">
+                <div>
+                    <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">AI 기업분석 자동화 시스템</h1>
+                    <p class="text-gray-500 mt-1">DART 전자공시 기반 유동성 및 잠재 자금 수요 탐지 플랫폼</p>
+                </div>
+                <button class="bg-[#f37321] hover:bg-[#d6621a] text-white px-5 py-2.5 rounded-lg font-semibold flex items-center gap-2 shadow-lg shadow-orange-100 transition">
+                    <i data-lucide="plus-circle" class="w-5 h-5"></i> 분석 기업 추가
+                </button>
+            </header>
+
+            <section class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <p class="text-sm text-gray-500 mb-1">총 분석 대상</p>
+                    <p class="text-2xl font-bold text-gray-900" id="total-count">-</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <p class="text-sm text-gray-500 mb-1">유동성 경보</p>
+                    <p class="text-2xl font-bold text-red-500" id="alert-count">-</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <p class="text-sm text-gray-500 mb-1">우선 영업 대상</p>
+                    <p class="text-2xl font-bold text-[#f37321]" id="priority-count">-</p>
+                </div>
+                <div class="relative">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5"></i>
+                    <input type="text" id="search-input" placeholder="기업명 · 종목코드 · 업종 검색..."
+                           class="w-full h-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl focus:ring-2 focus:ring-orange-500 outline-none transition shadow-sm">
+                </div>
+            </section>
+
+            <div class="flex gap-2 mb-6 flex-wrap">
+                <button onclick="filterCompanies('all')" id="filter-all"
+                    class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold bg-[#f37321] text-white transition">전체</button>
+                <button onclick="filterCompanies('priority')" id="filter-priority"
+                    class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-orange-50 transition">★ 우선영업</button>
+                <button onclick="filterCompanies('alert')" id="filter-alert"
+                    class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-red-50 transition">⚠ 유동성경보</button>
+                <button onclick="filterCompanies('normal')" id="filter-normal"
+                    class="filter-btn px-4 py-1.5 rounded-full text-sm font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-blue-50 transition">✓ 일반관찰</button>
+            </div>
+
+            <div id="company-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"></div>
+            <div id="no-result" class="hidden text-center py-20 text-gray-400">검색 결과가 없습니다.</div>
+        </main>
+    </div>
+
+    <script>
+    // 실제 KOSPI/KOSDAQ 상장사 100개
+    // currentRatio: 유동비율(%) — 150% 이상 우선영업 / 100% 미만 유동성경보
+    const companies = [
+      { name:"삼성전자",         code:"005930", sector:"반도체·전자",   liquidity:"148.7조", currentRatio:185, status:"우선영업",   issue:"현금성 자산 충분, 단기채 매입 기회" },
+      { name:"SK하이닉스",       code:"000660", sector:"반도체",        liquidity:"32.1조",  currentRatio:172, status:"우선영업",   issue:"설비투자 확대, CP 발행 가능성" },
+      { name:"LG에너지솔루션",   code:"373220", sector:"2차전지",       liquidity:"18.4조",  currentRatio:155, status:"우선영업",   issue:"수주잔고 급증, 단기자금 수요 예상" },
+      { name:"삼성바이오로직스", code:"207940", sector:"바이오",        liquidity:"9.2조",   currentRatio:210, status:"우선영업",   issue:"현금 보유 여력 우수" },
+      { name:"현대자동차",       code:"005380", sector:"자동차",        liquidity:"61.3조",  currentRatio:143, status:"우선영업",   issue:"EV 전환 투자 확대" },
+      { name:"NAVER",            code:"035420", sector:"IT·플랫폼",    liquidity:"8.7조",   currentRatio:198, status:"우선영업",   issue:"AI 투자 본격화, 유동자금 활용 여지" },
+      { name:"카카오",           code:"035720", sector:"IT·플랫폼",    liquidity:"5.3조",   currentRatio:162, status:"우선영업",   issue:"계열사 정리 후 현금 유입 예상" },
+      { name:"삼성SDI",          code:"006400", sector:"2차전지",       liquidity:"12.8조",  currentRatio:177, status:"우선영업",   issue:"배터리 수주 증가" },
+      { name:"LG화학",           code:"051910", sector:"화학",          liquidity:"14.2조",  currentRatio:138, status:"일반관찰",   issue:"배터리 분사 후 유동성 소폭 감소" },
+      { name:"포스코홀딩스",     code:"005490", sector:"철강",          liquidity:"22.5조",  currentRatio:131, status:"일반관찰",   issue:"원자재 가격 변동 영향" },
+      { name:"기아",             code:"000270", sector:"자동차",        liquidity:"28.6조",  currentRatio:145, status:"우선영업",   issue:"주주환원 강화, 잉여현금 증가" },
+      { name:"현대모비스",       code:"012330", sector:"자동차부품",    liquidity:"11.9조",  currentRatio:153, status:"우선영업",   issue:"전동화 부품 수주 확대" },
+      { name:"셀트리온",         code:"068270", sector:"바이오",        liquidity:"4.1조",   currentRatio:189, status:"우선영업",   issue:"바이오시밀러 허가 증가" },
+      { name:"삼성물산",         code:"028260", sector:"건설·상사",     liquidity:"19.3조",  currentRatio:160, status:"우선영업",   issue:"배당 확대 여력" },
+      { name:"SK이노베이션",     code:"096770", sector:"에너지",        liquidity:"13.7조",  currentRatio:118, status:"유동성경보", issue:"배터리 투자 부담, 단기차입 증가" },
+      { name:"한국전력",         code:"015760", sector:"유틸리티",      liquidity:"5.8조",   currentRatio:72,  status:"유동성경보", issue:"전기요금 동결로 현금흐름 악화" },
+      { name:"LG전자",           code:"066570", sector:"전자",          liquidity:"16.4조",  currentRatio:134, status:"일반관찰",   issue:"가전 수요 회복세" },
+      { name:"SK텔레콤",         code:"017670", sector:"통신",          liquidity:"7.2조",   currentRatio:91,  status:"유동성경보", issue:"배당 부담 + CAPEX 증가" },
+      { name:"KT",               code:"030200", sector:"통신",          liquidity:"6.9조",   currentRatio:88,  status:"유동성경보", issue:"회사채 만기 도래 대규모" },
+      { name:"롯데케미칼",       code:"011170", sector:"화학",          liquidity:"5.4조",   currentRatio:105, status:"유동성경보", issue:"업황 부진, 재고 증가" },
+      { name:"고려아연",         code:"010130", sector:"비철금속",      liquidity:"3.8조",   currentRatio:192, status:"우선영업",   issue:"아연 가격 강세, 현금 축적" },
+      { name:"한화에어로스페이스",code:"012450",sector:"방산·항공",    liquidity:"6.7조",   currentRatio:148, status:"우선영업",   issue:"방산 수출 증가, 유동자금 확대" },
+      { name:"두산에너빌리티",   code:"034020", sector:"중공업",        liquidity:"4.2조",   currentRatio:112, status:"일반관찰",   issue:"원전 수주 증가, 실적 개선 중" },
+      { name:"신한금융지주",     code:"055550", sector:"금융",          liquidity:"8.1조",   currentRatio:220, status:"우선영업",   issue:"이자이익 증가, 단기 운용자금 여력" },
+      { name:"KB금융",           code:"105560", sector:"금융",          liquidity:"9.4조",   currentRatio:215, status:"우선영업",   issue:"우량 여신 증가, 배당 확대" },
+      { name:"하나금융지주",     code:"086790", sector:"금융",          liquidity:"6.3조",   currentRatio:207, status:"우선영업",   issue:"글로벌 확장 가속" },
+      { name:"우리금융지주",     code:"316140", sector:"금융",          liquidity:"5.7조",   currentRatio:198, status:"우선영업",   issue:"비이자이익 확대" },
+      { name:"삼성화재",         code:"000810", sector:"보험",          liquidity:"7.6조",   currentRatio:231, status:"우선영업",   issue:"투자자산 운용 여력 충분" },
+      { name:"현대해상",         code:"001450", sector:"보험",          liquidity:"4.3조",   currentRatio:218, status:"우선영업",   issue:"보험료 인상 효과" },
+      { name:"한국타이어앤테크놀로지",code:"161390",sector:"타이어",   liquidity:"3.2조",   currentRatio:165, status:"우선영업",   issue:"글로벌 점유율 상승" },
+      { name:"CJ제일제당",       code:"097950", sector:"식품",          liquidity:"2.8조",   currentRatio:122, status:"일반관찰",   issue:"원재료비 부담 지속" },
+      { name:"롯데쇼핑",         code:"023530", sector:"유통",          liquidity:"3.1조",   currentRatio:95,  status:"유동성경보", issue:"오프라인 점포 구조조정 비용" },
+      { name:"이마트",           code:"139480", sector:"유통",          liquidity:"2.4조",   currentRatio:89,  status:"유동성경보", issue:"온라인 전환 투자 부담" },
+      { name:"아모레퍼시픽",     code:"090430", sector:"화장품",        liquidity:"2.1조",   currentRatio:175, status:"우선영업",   issue:"중국 리오프닝 수혜" },
+      { name:"LG생활건강",       code:"051900", sector:"화장품",        liquidity:"1.9조",   currentRatio:168, status:"우선영업",   issue:"프리미엄 브랜드 성장" },
+      { name:"오리온",           code:"271560", sector:"식품",          liquidity:"1.4조",   currentRatio:195, status:"우선영업",   issue:"해외 법인 현금창출 우수" },
+      { name:"농심",             code:"004370", sector:"식품",          liquidity:"0.9조",   currentRatio:183, status:"우선영업",   issue:"해외 라면 수출 증가" },
+      { name:"KT&G",             code:"033780", sector:"담배",          liquidity:"3.6조",   currentRatio:241, status:"우선영업",   issue:"현금창출력 최우수, 배당 여력 풍부" },
+      { name:"한국항공우주",     code:"047810", sector:"방산·항공",     liquidity:"2.3조",   currentRatio:143, status:"우선영업",   issue:"FA-50 수출 확대" },
+      { name:"LIG넥스원",        code:"079550", sector:"방산",          liquidity:"1.7조",   currentRatio:158, status:"우선영업",   issue:"유도무기 수주 급증" },
+      { name:"HD현대중공업",     code:"329180", sector:"조선",          liquidity:"8.3조",   currentRatio:127, status:"일반관찰",   issue:"수주잔고 역대 최대, 건조물량 증가" },
+      { name:"삼성중공업",       code:"010140", sector:"조선",          liquidity:"4.1조",   currentRatio:108, status:"일반관찰",   issue:"LNG선 수주 증가로 회복세" },
+      { name:"한진칼",           code:"180640", sector:"항공",          liquidity:"2.9조",   currentRatio:132, status:"일반관찰",   issue:"국제선 여객 정상화" },
+      { name:"대한항공",         code:"003490", sector:"항공",          liquidity:"5.4조",   currentRatio:89,  status:"유동성경보", issue:"항공기 도입 부채 증가" },
+      { name:"CJ ENM",           code:"035760", sector:"미디어·콘텐츠", liquidity:"1.3조",   currentRatio:147, status:"우선영업",   issue:"K-콘텐츠 수출 확대" },
+      { name:"HYBE",             code:"352820", sector:"엔터테인먼트",  liquidity:"1.6조",   currentRatio:203, status:"우선영업",   issue:"멀티레이블 성장, 현금 여력 우수" },
+      { name:"SM엔터테인먼트",   code:"041510", sector:"엔터테인먼트",  liquidity:"0.8조",   currentRatio:188, status:"우선영업",   issue:"글로벌 아티스트 확보" },
+      { name:"크래프톤",         code:"259960", sector:"게임",          liquidity:"3.1조",   currentRatio:267, status:"우선영업",   issue:"PUBG 글로벌 현금창출 최강" },
+      { name:"엔씨소프트",       code:"036570", sector:"게임",          liquidity:"1.4조",   currentRatio:195, status:"우선영업",   issue:"신작 라인업 기대" },
+      { name:"카카오게임즈",     code:"293490", sector:"게임",          liquidity:"0.6조",   currentRatio:172, status:"우선영업",   issue:"모바일 신작 출시" },
+      { name:"삼성엔지니어링",   code:"028050", sector:"건설·EPC",      liquidity:"3.8조",   currentRatio:148, status:"우선영업",   issue:"중동 플랜트 수주 증가" },
+      { name:"현대건설",         code:"000720", sector:"건설",          liquidity:"6.2조",   currentRatio:135, status:"일반관찰",   issue:"해외 수주 회복" },
+      { name:"GS건설",           code:"006360", sector:"건설",          liquidity:"3.4조",   currentRatio:98,  status:"유동성경보", issue:"미분양 증가, PF 리스크" },
+      { name:"HDC현대산업개발",  code:"294870", sector:"건설",          liquidity:"2.1조",   currentRatio:93,  status:"유동성경보", issue:"광주 사고 이후 수주 감소" },
+      { name:"OCI",              code:"010060", sector:"화학",          liquidity:"1.8조",   currentRatio:168, status:"우선영업",   issue:"태양광 폴리실리콘 가격 반등" },
+      { name:"금호석유",         code:"011780", sector:"화학",          liquidity:"2.3조",   currentRatio:176, status:"우선영업",   issue:"합성고무 수요 회복" },
+      { name:"SKC",              code:"011790", sector:"화학·소재",      liquidity:"1.2조",   currentRatio:121, status:"일반관찰",   issue:"동박 증설 투자 부담" },
+      { name:"에코프로비엠",     code:"247540", sector:"2차전지소재",   liquidity:"1.5조",   currentRatio:138, status:"일반관찰",   issue:"양극재 수요 회복 기대" },
+      { name:"포스코퓨처엠",     code:"003670", sector:"2차전지소재",   liquidity:"2.4조",   currentRatio:142, status:"우선영업",   issue:"양극재·음극재 동시 성장" },
+      { name:"강원랜드",         code:"035250", sector:"레저",          liquidity:"1.9조",   currentRatio:258, status:"우선영업",   issue:"현금창출력 최우수, 배당 여력 풍부" },
+      { name:"호텔신라",         code:"008770", sector:"면세·호텔",     liquidity:"1.1조",   currentRatio:112, status:"일반관찰",   issue:"중국 관광객 회복세" },
+      { name:"GKL",              code:"114090", sector:"레저",          liquidity:"0.7조",   currentRatio:231, status:"우선영업",   issue:"외국인 카지노 정상화" },
+      { name:"현대백화점",       code:"069960", sector:"유통",          liquidity:"2.2조",   currentRatio:118, status:"일반관찰",   issue:"프리미엄 소비 강세" },
+      { name:"신세계",           code:"004170", sector:"유통",          liquidity:"3.1조",   currentRatio:105, status:"일반관찰",   issue:"복합쇼핑몰 확장" },
+      { name:"GS리테일",         code:"007070", sector:"유통",          liquidity:"1.3조",   currentRatio:94,  status:"유동성경보", issue:"편의점 경쟁 심화" },
+      { name:"BGF리테일",        code:"282330", sector:"유통",          liquidity:"0.8조",   currentRatio:108, status:"일반관찰",   issue:"CU 점포 수 증가" },
+      { name:"오뚜기",           code:"007310", sector:"식품",          liquidity:"0.9조",   currentRatio:178, status:"우선영업",   issue:"브랜드 충성도 우수" },
+      { name:"하이트진로",       code:"000080", sector:"주류",          liquidity:"0.7조",   currentRatio:87,  status:"유동성경보", issue:"주류세 부담, 재고 증가" },
+      { name:"롯데제과",         code:"280360", sector:"식품",          liquidity:"0.6조",   currentRatio:132, status:"일반관찰",   issue:"해외 사업 확장" },
+      { name:"빙그레",           code:"005180", sector:"식품",          liquidity:"0.5조",   currentRatio:165, status:"우선영업",   issue:"해태아이스크림 시너지" },
+      { name:"매일유업",         code:"267980", sector:"식품",          liquidity:"0.4조",   currentRatio:153, status:"우선영업",   issue:"단백질 제품 성장" },
+      { name:"한미약품",         code:"128940", sector:"제약",          liquidity:"0.8조",   currentRatio:169, status:"우선영업",   issue:"비만치료제 파이프라인 기대" },
+      { name:"유한양행",         code:"000100", sector:"제약",          liquidity:"1.1조",   currentRatio:182, status:"우선영업",   issue:"렉라자 글로벌 허가" },
+      { name:"종근당",           code:"185750", sector:"제약",          liquidity:"0.6조",   currentRatio:148, status:"우선영업",   issue:"신약 파이프라인 확충" },
+      { name:"대웅제약",         code:"069620", sector:"제약",          liquidity:"0.5조",   currentRatio:141, status:"우선영업",   issue:"나보타 수출 확대" },
+      { name:"서울반도체",       code:"046890", sector:"반도체",        liquidity:"0.7조",   currentRatio:173, status:"우선영업",   issue:"LED 특허 로열티 수입" },
+      { name:"원익IPS",          code:"240810", sector:"반도체장비",    liquidity:"0.6조",   currentRatio:159, status:"우선영업",   issue:"삼성 투자 재개 수혜" },
+      { name:"주성엔지니어링",   code:"036930", sector:"반도체장비",    liquidity:"0.3조",   currentRatio:185, status:"우선영업",   issue:"장비 수주 급증" },
+      { name:"피에스케이홀딩스", code:"031980", sector:"반도체장비",    liquidity:"0.4조",   currentRatio:203, status:"우선영업",   issue:"에칭 장비 수주 증가" },
+      { name:"솔브레인",         code:"357780", sector:"반도체소재",    liquidity:"0.8조",   currentRatio:195, status:"우선영업",   issue:"식각액 수요 급증" },
+      { name:"동진쎄미켐",       code:"005290", sector:"반도체소재",    liquidity:"0.5조",   currentRatio:178, status:"우선영업",   issue:"PR 소재 글로벌 공급" },
+      { name:"SK바이오팜",       code:"326030", sector:"바이오",        liquidity:"0.9조",   currentRatio:347, status:"우선영업",   issue:"엑스코프리 미국 매출 성장" },
+      { name:"휴젤",             code:"145020", sector:"의료미용",      liquidity:"0.6조",   currentRatio:261, status:"우선영업",   issue:"보툴리눔 톡신 글로벌 확장" },
+      { name:"클래시스",         code:"214150", sector:"의료기기",      liquidity:"0.3조",   currentRatio:289, status:"우선영업",   issue:"슈링크 장비 수출 급증" },
+      { name:"한섬",             code:"020000", sector:"패션",          liquidity:"0.5조",   currentRatio:167, status:"우선영업",   issue:"프리미엄 패션 성장" },
+      { name:"더존비즈온",       code:"012510", sector:"IT·SaaS",       liquidity:"0.4조",   currentRatio:192, status:"우선영업",   issue:"ERP·클라우드 전환 수혜" },
+      { name:"카카오페이",       code:"377300", sector:"핀테크",        liquidity:"1.2조",   currentRatio:312, status:"우선영업",   issue:"현금성 자산 풍부" },
+      { name:"삼성SDS",          code:"018260", sector:"IT서비스",      liquidity:"3.2조",   currentRatio:228, status:"우선영업",   issue:"클라우드 매출 급성장" },
+      { name:"현대오토에버",     code:"307950", sector:"IT서비스",      liquidity:"0.9조",   currentRatio:183, status:"우선영업",   issue:"차량 소프트웨어 성장" },
+      { name:"일진머티리얼즈",   code:"020150", sector:"소재",          liquidity:"0.6조",   currentRatio:134, status:"일반관찰",   issue:"동박 업황 회복 대기" },
+      { name:"풍산",             code:"103140", sector:"비철금속",      liquidity:"1.2조",   currentRatio:128, status:"일반관찰",   issue:"방산 수요로 동 제품 호조" },
+      { name:"세아베스틸지주",   code:"001430", sector:"철강",          liquidity:"0.8조",   currentRatio:145, status:"우선영업",   issue:"특수강 수요 회복" },
+      { name:"LS",               code:"006260", sector:"전선·인프라",   liquidity:"2.1조",   currentRatio:118, status:"일반관찰",   issue:"전력망 인프라 확장 수혜" },
+      { name:"효성첨단소재",     code:"298050", sector:"소재",          liquidity:"0.7조",   currentRatio:139, status:"일반관찰",   issue:"탄소섬유 수요 증가" },
+      { name:"코스모화학",       code:"005420", sector:"화학",          liquidity:"0.4조",   currentRatio:157, status:"우선영업",   issue:"이산화티타늄 수요 안정" },
+      { name:"한화솔루션",       code:"009830", sector:"에너지·화학",   liquidity:"4.3조",   currentRatio:118, status:"일반관찰",   issue:"태양광 모듈 미국 수출 증가" },
+      { name:"두산밥캣",         code:"241560", sector:"건설기계",      liquidity:"2.7조",   currentRatio:163, status:"우선영업",   issue:"북미 컴팩트 장비 수요 강세" },
+      { name:"현대두산인프라코어",code:"042670",sector:"건설기계",     liquidity:"2.1조",   currentRatio:135, status:"일반관찰",   issue:"중국 수요 회복 기대" },
+      { name:"S-Oil",            code:"010950", sector:"정유",          liquidity:"5.9조",   currentRatio:97,  status:"유동성경보", issue:"정제마진 축소, 재고평가손 발생" },
+      { name:"GS칼텍스",         code:"비상장",  sector:"정유",          liquidity:"4.8조",   currentRatio:95,  status:"유동성경보", issue:"설비투자 확대, 운전자본 부담" },
+      { name:"케이카",           code:"381970", sector:"중고차",        liquidity:"0.4조",   currentRatio:152, status:"우선영업",   issue:"중고차 거래 플랫폼 성장" },
+      { name:"카카오모빌리티",   code:"비상장",  sector:"모빌리티",      liquidity:"0.7조",   currentRatio:168, status:"우선영업",   issue:"택시·대리 플랫폼 확장" }
+    ];
+
+    let currentFilter = 'all';
+    let searchQuery = '';
+
+    function getStatusStyle(status) {
+      if (status === '우선영업')   return { badge:'bg-orange-50 text-orange-600', bar:'bg-orange-400', icon:'text-orange-500' };
+      if (status === '유동성경보') return { badge:'bg-red-50 text-red-600',     bar:'bg-red-400',    icon:'text-red-500' };
+      return                               { badge:'bg-blue-50 text-blue-600',   bar:'bg-blue-300',   icon:'text-blue-500' };
+    }
+
+    function getRatioColor(r) {
+      if (r >= 200) return 'text-orange-500';
+      if (r >= 150) return 'text-green-600';
+      if (r >= 100) return 'text-blue-600';
+      return 'text-red-500';
+    }
+
+    function renderCompanies() {
+      const grid     = document.getElementById('company-grid');
+      const noResult = document.getElementById('no-result');
+
+      const filtered = companies.filter(c => {
+        const matchFilter =
+          currentFilter === 'all' ||
+          (currentFilter === 'priority' && c.status === '우선영업') ||
+          (currentFilter === 'alert'    && c.status === '유동성경보') ||
+          (currentFilter === 'normal'   && c.status === '일반관찰');
+        const q = searchQuery.toLowerCase();
+        const matchSearch = !q ||
+          c.name.includes(q) || c.code.includes(q) || c.sector.includes(q);
+        return matchFilter && matchSearch;
+      });
+
+      grid.innerHTML = '';
+      if (filtered.length === 0) { noResult.classList.remove('hidden'); return; }
+      noResult.classList.add('hidden');
+
+      filtered.forEach(c => {
+        const s = getStatusStyle(c.status);
+        const ratioColor = getRatioColor(c.currentRatio);
+        const barWidth   = Math.min(c.currentRatio / 3.5, 100).toFixed(1);
+
+        const card = document.createElement('div');
+        card.className = "bg-white rounded-2xl p-6 border border-gray-100 hover:border-orange-200 hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group";
+        card.innerHTML = `
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="font-bold text-gray-900 text-lg group-hover:text-[#f37321] transition">${c.name}</h3>
+              <p class="text-xs font-mono text-gray-400">${c.code} · ${c.sector}</p>
+            </div>
+            <span class="text-[11px] px-2.5 py-1 rounded-full font-bold ${s.badge}">${c.status}</span>
+          </div>
+          <div class="space-y-3 pt-4 border-t border-gray-50">
+            <div class="flex justify-between items-center">
+              <span class="text-sm text-gray-500">추정 유동자금</span>
+              <span class="font-bold text-gray-800">${c.liquidity}</span>
+            </div>
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-gray-400">유동비율</span>
+                <span class="font-bold ${ratioColor}">${c.currentRatio}%</span>
+              </div>
+              <div class="w-full bg-gray-100 rounded-full h-1.5">
+                <div class="h-1.5 rounded-full ${s.bar}" style="width:${barWidth}%"></div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg">
+              <i data-lucide="zap" class="w-3.5 h-3.5 flex-shrink-0 ${s.icon}"></i>
+              <span class="text-xs text-gray-600">${c.issue}</span>
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+      lucide.createIcons();
+    }
+
+    function filterCompanies(type) {
+      currentFilter = type;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-[#f37321]', 'text-white');
+        btn.classList.add('bg-white', 'border', 'border-gray-200', 'text-gray-600');
+      });
+      const active = document.getElementById('filter-' + type);
+      active.classList.add('bg-[#f37321]', 'text-white');
+      active.classList.remove('bg-white', 'border', 'border-gray-200', 'text-gray-600');
+      renderCompanies();
+    }
+
+    // KPI 통계
+    document.getElementById('total-count').textContent    = companies.length + '개 기업';
+    document.getElementById('alert-count').textContent    = companies.filter(c => c.status === '유동성경보').length + '건 발견';
+    document.getElementById('priority-count').textContent = companies.filter(c => c.status === '우선영업').length + '개 기업';
+
+    // 검색
+    document.getElementById('search-input').addEventListener('input', e => {
+      searchQuery = e.target.value.trim();
+      renderCompanies();
+    });
+
+    renderCompanies();
+  </script>
+</body>
+</html>
